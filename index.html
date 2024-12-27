@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="pageTitle">PushtiWords</title>
+    <title>PushtiWords</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="config.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1 id="appName">DictPushti 📖</h1>
-        <p id="appTagline" class="tagline"></p>
+        <h1>PushtiWords📖</h1>
+        <p class="tagline">Spiritual Dictionary</p>
 
         <div class="search-section">
             <input type="text" id="searchInput" placeholder="Search a word">
@@ -21,67 +20,84 @@
         <div id="result" class="result"></div>
     </div>
 
-    <script>
-        // Update page elements with config
-        document.getElementById('pageTitle').textContent = APP_CONFIG.NAME;
-        document.getElementById('appName').textContent = `${APP_CONFIG.NAME} 📖`;
-        document.getElementById('appTagline').textContent = APP_CONFIG.TAGLINE;
+    <!-- Firebase SDK -->
+    <script type="module">
+        // Firebase Configuration
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 
-        // Load existing words from localStorage
-        let dictionary = JSON.parse(localStorage.getItem('dictionary') || '{}');
+        const firebaseConfig = {
+            apiKey: "AIzaSyC3mwFH49WiG4Swjmo-1JV9wjAMBIDkLA4",
+            authDomain: "pushtiwords.firebaseapp.com",
+            projectId: "pushtiwords",
+            databaseURL: "https://pushtiwords-default-rtdb.firebaseio.com",
+            storageBucket: "pushtiwords.appspot.com",
+            messagingSenderId: "460696747514",
+            appId: "1:460696747514:web:40e94e966bdfcfe624b843"
+        };
 
-        // Utility function to handle word variations
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const dictionaryRef = ref(database, 'dictionary');
+
+        // Global dictionary variable
+        let dictionary = {};
+
+        // Load dictionary from Firebase
+        onValue(dictionaryRef, (snapshot) => {
+            dictionary = snapshot.val() || {};
+            console.log('Dictionary loaded from Firebase');
+        });
+
+        // Utility function for word variations
         function getWordVariations(searchTerm) {
-            return [
+            const variations = new Set([
                 searchTerm,
-                searchTerm.replace(/ji$/, ''),  // Remove 'ji' suffix
-                searchTerm + 'ji'               // Add 'ji' suffix
-            ];
+                searchTerm.replace(/ji$/, ''),
+                searchTerm + 'ji'
+            ]);
+
+            if (searchTerm.endsWith('ji')) {
+                variations.add(searchTerm.slice(0, -2));
+            }
+
+            return [...variations];
         }
 
+        // Levenshtein Distance Algorithm
         function levenshteinDistance(a, b) {
-            console.log(`Calculating Levenshtein distance between "${a}" and "${b}"`);
             const matrix = [];
 
-            // Increment along the first column of each row
             for (let i = 0; i <= b.length; i++) {
                 matrix[i] = [i];
             }
 
-            // Increment each column in the first row
             for (let j = 0; j <= a.length; j++) {
                 matrix[0][j] = j;
             }
 
-            // Fill in the rest of the matrix
             for (let i = 1; i <= b.length; i++) {
                 for (let j = 1; j <= a.length; j++) {
                     if (b.charAt(i - 1) === a.charAt(j - 1)) {
                         matrix[i][j] = matrix[i - 1][j - 1];
                     } else {
                         matrix[i][j] = Math.min(
-                            matrix[i - 1][j - 1] + 1, // substitution
-                            matrix[i][j - 1] + 1,     // insertion
-                            matrix[i - 1][j] + 1      // deletion
+                            matrix[i - 1][j - 1] + 1,
+                            matrix[i][j - 1] + 1,
+                            matrix[i - 1][j] + 1
                         );
                     }
                 }
             }
 
-            const distance = matrix[b.length][a.length];
-            console.log(`Levenshtein distance: ${distance}`);
-            return distance;
+            return matrix[b.length][a.length];
         }
 
+        // Find Similar Words
         function findSimilarWords(searchTerm) {
-            console.log(`Finding similar words for: "${searchTerm}"`);
-            console.log(`Dictionary keys: ${Object.keys(dictionary)}`);
-            
             const similarWords = [];
             const maxDistance = Math.min(3, Math.floor(searchTerm.length / 2));
-            console.log(`Max allowed distance: ${maxDistance}`);
-
-            // Try multiple variations of the search term
             const searchVariations = getWordVariations(searchTerm);
 
             searchVariations.forEach(variation => {
@@ -93,39 +109,31 @@
                 });
             });
 
-            const sortedSimilarWords = similarWords
-                .sort((a, b) => a.distance - b.distance)
-                .slice(0, 5)  // Limit to top 5 suggestions
-                .map(item => item.word);
-            
-            console.log(`Similar words found: ${sortedSimilarWords}`);
-            return [...new Set(sortedSimilarWords)];  // Remove duplicates
+            return [...new Set(
+                similarWords
+                    .sort((a, b) => a.distance - b.distance)
+                    .slice(0, 5)
+                    .map(item => item.word)
+            )];
         }
 
-        function searchWord() {
-            console.log('searchWord function called');
+        // Search Word Function
+        window.searchWord = function() {
             const searchInput = document.getElementById('searchInput');
             const suggestionsDiv = document.getElementById('suggestions');
             const resultDiv = document.getElementById('result');
             
             const searchTerm = searchInput.value.trim().toLowerCase();
-            console.log(`Search term: "${searchTerm}"`);
             
-            // Clear previous results
             suggestionsDiv.innerHTML = '';
             resultDiv.innerHTML = '';
 
-            // Try multiple variations of the search term
             const searchVariations = getWordVariations(searchTerm);
 
-            console.log(`Search variations: ${searchVariations}`);
-
-            // Check for exact match in any variation
+            // Check for exact match
             let exactMatch = false;
             for (let variation of searchVariations) {
-                console.log(`Checking variation: "${variation}"`);
                 if (dictionary[variation]) {
-                    console.log(`Exact match found for "${variation}"`);
                     resultDiv.innerHTML = `
                         <h2>${variation}</h2>
                         <p>${dictionary[variation]}</p>
@@ -135,14 +143,11 @@
                 }
             }
 
+            // If no exact match, show suggestions
             if (!exactMatch) {
-                console.log(`No exact match for "${searchTerm}"`);
-                // No exact match
                 const similarWords = findSimilarWords(searchTerm);
                 
                 if (similarWords.length > 0) {
-                    // Show suggestions
-                    console.log(`Showing suggestions for "${searchTerm}"`);
                     suggestionsDiv.innerHTML = `
                         <p>Did you mean:</p>
                         ${similarWords.map(word => 
@@ -154,14 +159,12 @@
                     
                     resultDiv.innerHTML = `<p>No exact match found for "${searchTerm}"</p>`;
                 } else {
-                    console.log(`No similar words found for "${searchTerm}"`);
-                    // No similar words found
                     resultDiv.innerHTML = `<p>No definition found for "${searchTerm}"</p>`;
                 }
             }
         }
 
-        // Add event listener for Enter key
+        // Enter key event listener
         document.getElementById('searchInput').addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
                 searchWord();
