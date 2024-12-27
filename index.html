@@ -29,6 +29,16 @@
 
         // Load existing words from localStorage
         let dictionary = JSON.parse(localStorage.getItem('dictionary') || '{}');
+
+        // Utility function to handle word variations
+        function getWordVariations(searchTerm) {
+            return [
+                searchTerm,
+                searchTerm.replace(/ji$/, ''),  // Remove 'ji' suffix
+                searchTerm + 'ji'               // Add 'ji' suffix
+            ];
+        }
+
         function levenshteinDistance(a, b) {
             console.log(`Calculating Levenshtein distance between "${a}" and "${b}"`);
             const matrix = [];
@@ -71,11 +81,16 @@
             const maxDistance = Math.min(3, Math.floor(searchTerm.length / 2));
             console.log(`Max allowed distance: ${maxDistance}`);
 
-            Object.keys(dictionary).forEach(word => {
-                const distance = levenshteinDistance(searchTerm.toLowerCase(), word.toLowerCase());
-                if (distance <= maxDistance) {
-                    similarWords.push({ word, distance });
-                }
+            // Try multiple variations of the search term
+            const searchVariations = getWordVariations(searchTerm);
+
+            searchVariations.forEach(variation => {
+                Object.keys(dictionary).forEach(word => {
+                    const distance = levenshteinDistance(variation.toLowerCase(), word.toLowerCase());
+                    if (distance <= maxDistance) {
+                        similarWords.push({ word, distance });
+                    }
+                });
             });
 
             const sortedSimilarWords = similarWords
@@ -84,7 +99,7 @@
                 .map(item => item.word);
             
             console.log(`Similar words found: ${sortedSimilarWords}`);
-            return sortedSimilarWords;
+            return [...new Set(sortedSimilarWords)];  // Remove duplicates
         }
 
         function searchWord() {
@@ -100,15 +115,27 @@
             suggestionsDiv.innerHTML = '';
             resultDiv.innerHTML = '';
 
-            console.log(`Checking if "${searchTerm}" exists in dictionary`);
-            if (dictionary[searchTerm]) {
-                // Exact match found
-                console.log(`Exact match found for "${searchTerm}"`);
-                resultDiv.innerHTML = `
-                    <h2>${searchTerm}</h2>
-                    <p>${dictionary[searchTerm]}</p>
-                `;
-            } else {
+            // Try multiple variations of the search term
+            const searchVariations = getWordVariations(searchTerm);
+
+            console.log(`Search variations: ${searchVariations}`);
+
+            // Check for exact match in any variation
+            let exactMatch = false;
+            for (let variation of searchVariations) {
+                console.log(`Checking variation: "${variation}"`);
+                if (dictionary[variation]) {
+                    console.log(`Exact match found for "${variation}"`);
+                    resultDiv.innerHTML = `
+                        <h2>${variation}</h2>
+                        <p>${dictionary[variation]}</p>
+                    `;
+                    exactMatch = true;
+                    break;
+                }
+            }
+
+            if (!exactMatch) {
                 console.log(`No exact match for "${searchTerm}"`);
                 // No exact match
                 const similarWords = findSimilarWords(searchTerm);
@@ -133,6 +160,8 @@
                 }
             }
         }
+
+        // Add event listener for Enter key
         document.getElementById('searchInput').addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
                 searchWord();
