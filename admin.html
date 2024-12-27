@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">DictPushti - Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 id="appName">DictPushti Admin 🔒</h1>
+        <p id="appTagline" class="tagline"></p>
+        
+        <div class="login-section">
+            <input type="password" id="passwordInput" placeholder="Enter admin password">
+            <button onclick="checkPassword()">Login</button>
+        </div>
+
+        <div id="adminPanel" style="display:none;">
+            <div class="add-word-section">
+                <input type="text" id="wordInput" placeholder="Enter word">
+                <textarea id="definitionInput" placeholder="Enter definition"></textarea>
+                <button onclick="saveWord()">Save Word</button>
+            </div>
+
+            <div class="bulk-upload-section">
+                <h2>Bulk Upload Methods</h2>
+                
+                <div class="upload-tabs">
+                    <button onclick="showUploadTab('csv')">CSV Upload</button>
+                    <button onclick="showUploadTab('text')">Bulk Text</button>
+                </div>
+
+                <div id="csvUploadTab" class="upload-tab">
+                    <input type="file" id="csvFileInput" accept=".csv">
+                    <button onclick="uploadCSV()">Upload CSV</button>
+                    <p>CSV Format: word,definition</p>
+                </div>
+
+                <div id="textUploadTab" class="upload-tab" style="display:none;">
+                    <textarea id="bulkTextInput" placeholder="Enter words and definitions. Format:&#10;word1: definition1&#10;word2: definition2"></textarea>
+                    <button onclick="uploadBulkText()">Upload Text</button>
+                </div>
+            </div>
+
+            <div class="word-list">
+                <h2>Existing Words</h2>
+                <div id="wordListContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Update page elements with config
+        document.getElementById('pageTitle').textContent = `${APP_CONFIG.NAME} - Admin`;
+        document.getElementById('appName').textContent = `${APP_CONFIG.NAME} Admin 🔒`;
+        document.getElementById('appTagline').textContent = APP_CONFIG.TAGLINE;
+
+        // Use password from config
+        const ADMIN_PASSWORD = APP_CONFIG.ADMIN_PASSWORD;
+
+        // Load dictionary from localStorage
+        let dictionary = JSON.parse(localStorage.getItem('dictionary') || '{}');
+
+        function showUploadTab(tabName) {
+            const csvTab = document.getElementById('csvUploadTab');
+            const textTab = document.getElementById('textUploadTab');
+
+            if (tabName === 'csv') {
+                csvTab.style.display = 'block';
+                textTab.style.display = 'none';
+            } else {
+                csvTab.style.display = 'none';
+                textTab.style.display = 'block';
+            }
+        }
+
+        function checkPassword() {
+            const passwordInput = document.getElementById('passwordInput');
+            const password = passwordInput.value.trim();
+            
+            if (password === ADMIN_PASSWORD) {
+                // Hide login section
+                document.querySelector('.login-section').style.display = 'none';
+                
+                // Show admin panel
+                document.getElementById('adminPanel').style.display = 'block';
+                
+                // Display existing words
+                displayWordList();
+                
+                // Clear password input
+                passwordInput.value = '';
+            } else {
+                alert('Incorrect password');
+                passwordInput.value = '';
+                passwordInput.focus();
+            }
+        }
+
+        function saveWord() {
+            const wordInput = document.getElementById('wordInput');
+            const definitionInput = document.getElementById('definitionInput');
+            
+            const word = wordInput.value.trim().toLowerCase();
+            const definition = definitionInput.value.trim();
+            
+            if (word && definition) {
+                dictionary[word] = definition;
+                localStorage.setItem('dictionary', JSON.stringify(dictionary));
+                
+                // Clear inputs
+                wordInput.value = '';
+                definitionInput.value = '';
+                
+                alert('Word saved successfully!');
+                displayWordList();
+            } else {
+                alert('Please enter both word and definition');
+            }
+        }
+
+        function uploadBulkText() {
+            const bulkTextInput = document.getElementById('bulkTextInput');
+            const text = bulkTextInput.value.trim();
+            
+            if (!text) {
+                alert('Please enter words and definitions');
+                return;
+            }
+
+            // Split by lines and process
+            const lines = text.split('\n');
+            let addedWords = 0;
+
+            lines.forEach(line => {
+                // Support multiple formats: 
+                // word: definition
+                // word - definition
+                // word definition
+                const separators = [':', '-', ' '];
+                
+                for (let separator of separators) {
+                    const parts = line.split(separator).map(part => part.trim());
+                    
+                    if (parts.length >= 2) {
+                        const word = parts[0].toLowerCase();
+                        const definition = parts.slice(1).join(' ');
+                        
+                        if (word && definition) {
+                            dictionary[word] = definition;
+                            addedWords++;
+                            break;  // Stop after successful parsing
+                        }
+                    }
+                }
+            });
+
+            localStorage.setItem('dictionary', JSON.stringify(dictionary));
+            displayWordList();
+            
+            alert(`Bulk text uploaded successfully! ${addedWords} words added.`);
+            bulkTextInput.value = '';
+        }
+
+        function uploadCSV() {
+            const fileInput = document.getElementById('csvFileInput');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const contents = e.target.result;
+                    const lines = contents.split('\n');
+                    
+                    let addedWords = 0;
+                    lines.forEach(line => {
+                        const [word, definition] = line.split(',').map(item => item.trim());
+                        if (word && definition) {
+                            dictionary[word.toLowerCase()] = definition;
+                            addedWords++;
+                        }
+                    });
+                    
+                    localStorage.setItem('dictionary', JSON.stringify(dictionary));
+                    displayWordList();
+                    alert(`CSV uploaded successfully! ${addedWords} words added.`);
+                    fileInput.value = ''; // Clear file input
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please select a CSV file');
+            }
+        }
+
+        function displayWordList() {
+            const container = document.getElementById('wordListContainer');
+            container.innerHTML = '';
+            
+            const sortedWords = Object.keys(dictionary).sort();
+            
+            sortedWords.forEach(word => {
+                const wordItem = document.createElement('div');
+                wordItem.innerHTML = `
+                    <strong>${word}</strong>: 
+                    ${dictionary[word]}
+                    <button onclick="deleteWord('${word}')">Delete</button>
+                `;
+                container.appendChild(wordItem);
+            });
+        }
+
+        function deleteWord(word) {
+            delete dictionary[word];
+            localStorage.setItem('dictionary', JSON.stringify(dictionary));
+            displayWordList();
+        }
+    </script>
+</body>
+</html>

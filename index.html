@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">DictPushti</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="config.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 id="appName">DictPushti 📖</h1>
+        <p id="appTagline" class="tagline"></p>
+
+        <div class="search-section">
+            <input type="text" id="searchInput" placeholder="Search a word">
+            <button onclick="searchWord()">Search</button>
+        </div>
+
+        <div id="suggestions" class="suggestions"></div>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        // Update page elements with config
+        document.getElementById('pageTitle').textContent = APP_CONFIG.NAME;
+        document.getElementById('appName').textContent = `${APP_CONFIG.NAME} 📖`;
+        document.getElementById('appTagline').textContent = APP_CONFIG.TAGLINE;
+
+        // Load existing words from localStorage
+        let dictionary = JSON.parse(localStorage.getItem('dictionary') || '{}');
+
+        // Levenshtein Distance Algorithm
+        function levenshteinDistance(a, b) {
+            const matrix = [];
+
+            // Increment along the first column of each row
+            for (let i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+
+            // Increment each column in the first row
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+
+            // Fill in the rest of the matrix
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1, // substitution
+                            matrix[i][j - 1] + 1,     // insertion
+                            matrix[i - 1][j] + 1      // deletion
+                        );
+                    }
+                }
+            }
+
+            return matrix[b.length][a.length];
+        }
+
+        function findSimilarWords(searchTerm) {
+            const similarWords = [];
+            const maxDistance = Math.min(3, Math.floor(searchTerm.length / 2));
+
+            Object.keys(dictionary).forEach(word => {
+                const distance = levenshteinDistance(searchTerm.toLowerCase(), word.toLowerCase());
+                if (distance <= maxDistance) {
+                    similarWords.push({ word, distance });
+                }
+            });
+
+            return similarWords
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 5)  // Limit to top 5 suggestions
+                .map(item => item.word);
+        }
+
+        function searchWord() {
+            const searchInput = document.getElementById('searchInput');
+            const suggestionsDiv = document.getElementById('suggestions');
+            const resultDiv = document.getElementById('result');
+            
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            
+            // Clear previous results
+            suggestionsDiv.innerHTML = '';
+            resultDiv.innerHTML = '';
+
+            if (dictionary[searchTerm]) {
+                // Exact match found
+                resultDiv.innerHTML = `
+                    <h2>${searchTerm}</h2>
+                    <p>${dictionary[searchTerm]}</p>
+                `;
+            } else {
+                // No exact match
+                const similarWords = findSimilarWords(searchTerm);
+                
+                if (similarWords.length > 0) {
+                    // Show suggestions
+                    suggestionsDiv.innerHTML = `
+                        <p>Did you mean:</p>
+                        ${similarWords.map(word => 
+                            `<button onclick="document.getElementById('searchInput').value='${word}'; searchWord();">
+                                ${word}
+                            </button>`
+                        ).join('')}
+                    `;
+                    
+                    resultDiv.innerHTML = `<p>No exact match found for "${searchTerm}"</p>`;
+                } else {
+                    // No similar words found
+                    resultDiv.innerHTML = `<p>No definition found for "${searchTerm}"</p>`;
+                }
+            }
+        }
+
+        // Optional: Add event listener for Enter key
+        document.getElementById('searchInput').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                searchWord();
+            }
+        });
+    </script>
+</body>
+</html>
