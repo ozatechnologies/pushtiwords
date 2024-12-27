@@ -29,9 +29,8 @@
 
         // Load existing words from localStorage
         let dictionary = JSON.parse(localStorage.getItem('dictionary') || '{}');
-
-        // Levenshtein Distance Algorithm
         function levenshteinDistance(a, b) {
+            console.log(`Calculating Levenshtein distance between "${a}" and "${b}"`);
             const matrix = [];
 
             // Increment along the first column of each row
@@ -59,12 +58,18 @@
                 }
             }
 
-            return matrix[b.length][a.length];
+            const distance = matrix[b.length][a.length];
+            console.log(`Levenshtein distance: ${distance}`);
+            return distance;
         }
 
         function findSimilarWords(searchTerm) {
+            console.log(`Finding similar words for: "${searchTerm}"`);
+            console.log(`Dictionary keys: ${Object.keys(dictionary)}`);
+            
             const similarWords = [];
             const maxDistance = Math.min(3, Math.floor(searchTerm.length / 2));
+            console.log(`Max allowed distance: ${maxDistance}`);
 
             Object.keys(dictionary).forEach(word => {
                 const distance = levenshteinDistance(searchTerm.toLowerCase(), word.toLowerCase());
@@ -73,35 +78,44 @@
                 }
             });
 
-            return similarWords
+            const sortedSimilarWords = similarWords
                 .sort((a, b) => a.distance - b.distance)
                 .slice(0, 5)  // Limit to top 5 suggestions
                 .map(item => item.word);
+            
+            console.log(`Similar words found: ${sortedSimilarWords}`);
+            return sortedSimilarWords;
         }
 
         function searchWord() {
+            console.log('searchWord function called');
             const searchInput = document.getElementById('searchInput');
             const suggestionsDiv = document.getElementById('suggestions');
             const resultDiv = document.getElementById('result');
             
             const searchTerm = searchInput.value.trim().toLowerCase();
+            console.log(`Search term: "${searchTerm}"`);
             
             // Clear previous results
             suggestionsDiv.innerHTML = '';
             resultDiv.innerHTML = '';
 
+            console.log(`Checking if "${searchTerm}" exists in dictionary`);
             if (dictionary[searchTerm]) {
                 // Exact match found
+                console.log(`Exact match found for "${searchTerm}"`);
                 resultDiv.innerHTML = `
                     <h2>${searchTerm}</h2>
                     <p>${dictionary[searchTerm]}</p>
                 `;
             } else {
+                console.log(`No exact match for "${searchTerm}"`);
                 // No exact match
                 const similarWords = findSimilarWords(searchTerm);
                 
                 if (similarWords.length > 0) {
                     // Show suggestions
+                    console.log(`Showing suggestions for "${searchTerm}"`);
                     suggestionsDiv.innerHTML = `
                         <p>Did you mean:</p>
                         ${similarWords.map(word => 
@@ -113,13 +127,12 @@
                     
                     resultDiv.innerHTML = `<p>No exact match found for "${searchTerm}"</p>`;
                 } else {
+                    console.log(`No similar words found for "${searchTerm}"`);
                     // No similar words found
                     resultDiv.innerHTML = `<p>No definition found for "${searchTerm}"</p>`;
                 }
             }
         }
-
-        // Optional: Add event listener for Enter key
         document.getElementById('searchInput').addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
                 searchWord();
